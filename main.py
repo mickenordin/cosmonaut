@@ -39,7 +39,7 @@ def get_html_recursive(pyobj: dict, recursion_level=0) -> str:
         for key, value in pyobj.items():
 
             if isinstance(value, dict):
-                hlevel: str = str(max_depth - 2 + recursion_level)
+                hlevel: str = str(recursion_level + 1)
                 html += "<h" + hlevel + ">" + key + "</h" + hlevel + ">" + "\n"
                 html += get_html_recursive(value, recursion_level + 1)
             else:
@@ -67,8 +67,8 @@ def main() -> int:
     args = argsparser.parse_args()
     project = args.project
     output = args.output
-    should_link: dict[str, bool] = {'global': True, 'cosmos-rules': True}
-    index_links: dict[str, list[str]] = {'global': ['global', 'cosmos-rules']}
+    should_link: dict[str, bool] = {'global': True, 'cosmos-rules': True, 'sites': True}
+    index_links: dict[str, list[str]] = {'global': ['cosmos-rules', 'global'], 'sites': ['sites']}
 
     def mkdir(path: str) -> None:
         pathlib_path = Path(os.path.join(output, path))
@@ -114,19 +114,37 @@ def main() -> int:
             print_index(common_dict, common)
         index_links['common'].append(common)
 
-    for global_dir in [cosmosparser.global_dir, "cosmos-rules"]:
+    for global_dir in [cosmosparser.global_dir, "cosmos-rules", 'sites']:
         mkdir(global_dir)
 
     print_index(cosmosparser.get_dict_for_dir(cosmosparser.global_dir),
                 cosmosparser.global_dir)
     cosmos_rules = cosmosparser.get_dict_for_dir("global/overlay/etc/puppet",
                                                  override_hiera_path=True)
+    sites:list[str] = list()
+    for key, value in cosmos_rules.items():
+        for inner_key, inner_value in value.items():
+            if inner_key == "sunet::frontend::register_sites":
+                for site, _ in inner_value['sites'].items():
+                    link = '<a href="https://{0}">{0}</a>'.format(site)
+                    if link not in sites:
+                        sites.append(link)
+
+            elif inner_key == "sunet::frontend::register_sites_array":
+                for site, in inner_value['sites']:
+                    link = '<a href="https://{0}">{0}</a>'.format(site)
+                    if link not in sites:
+                        sites.append(link)
+
+    sites.sort()
     print_index(cosmos_rules, "cosmos-rules")
+    print_index({'Manged sites':sites}, "sites")
 
-    html = '<html><head><link rel="stylesheet" href="' + stylesheet + '"></head><body>'
-
-    for key in index_links.keys():
-        html += "<h1>" + key + "</h1><ul>"
+    html = '<html><head><link rel="stylesheet" href="' + stylesheet + '"></head><body><h1>Welcome</h1><p>Welcome Cosmonaut, please go ahead and explore the Cosmos</p>'
+    keys = list(index_links.keys())
+    keys.sort()
+    for key in keys:
+        html += "<h2>" + key.capitalize() + "</h2><ul>"
 
         for value in index_links[key]:
             if should_link[value]:
